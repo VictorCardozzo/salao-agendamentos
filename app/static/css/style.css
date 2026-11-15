@@ -1,0 +1,8 @@
+.btn-agendamento {
+    min-height: 48px;
+    min-width: 48px;
+    font-size: 1rem;
+    background-color: #0056b3;
+    color: #ffffff;
+    border-radius: 8px;
+}
