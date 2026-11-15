@@ -12,6 +12,8 @@
       --primary: #7c3aed;
       --primary-hover: #6d28d9;
       --border: #d1d5db;
+      --alert-bg: #fef2f2;
+      --alert-text: #991b1b;
     }
     body.high-contrast {
       --bg: #000000;
@@ -20,6 +22,8 @@
       --primary: #ffff00;
       --primary-hover: #e5e500;
       --border: #ffff00;
+      --alert-bg: #111111;
+      --alert-text: #ffff00;
     }
     body.high-contrast button.btn-submit { color: #000000; font-weight: bold; }
     body {
@@ -82,6 +86,16 @@
       cursor: pointer;
     }
     .btn-submit:hover { background: var(--primary-hover); }
+    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+    .aviso-domingo {
+      margin-top: 1rem;
+      padding: 0.85rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--alert-bg);
+      color: var(--alert-text);
+      font-weight: 600;
+    }
     ul { list-style: none; padding: 0; margin: 0; }
     li {
       padding: 0.7rem 0;
@@ -105,35 +119,50 @@
     <section class="card" aria-labelledby="form-title">
       <h2 id="form-title" style="margin-top:0; font-size:1.1rem;">Novo Agendamento</h2>
       <form id="form-agendamento">
-        <label for="cliente_nome">Seu Nome</label>
-        <input type="text" id="cliente_nome" name="cliente_nome" placeholder="Ex: Maria" required aria-required="true">
+        <label for="data">Data do Atendimento (Segunda a Sábado)</label>
+        <input type="date" id="data" name="data" value="{{ data_selecionada }}" min="{{ hoje }}" required aria-required="true">
 
-        <label for="servico">Serviço Desejado</label>
-        <select id="servico" name="servico" required aria-required="true">
-          <option value="Corte Feminino">Corte Feminino</option>
-          <option value="Escova e Hidratação">Escova e Hidratação</option>
-          <option value="Manicure e Pedicure">Manicure e Pedicure</option>
-          <option value="Coloração">Coloração</option>
-        </select>
+        {% if is_domingo %}
+          <div class="aviso-domingo" role="alert">
+            O salão está fechado aos domingos. Selecione uma data de segunda a sábado.
+          </div>
+        {% else %}
+          <label for="cliente_nome">Seu Nome</label>
+          <input type="text" id="cliente_nome" name="cliente_nome" placeholder="Ex: Maria" required aria-required="true">
 
-        <label for="horario">Horário (08:00 às 20:00)</label>
-        <select id="horario" name="horario" required aria-required="true">
-          {% for h in horarios %}
-            {% if h in ocupados %}
-              <option value="{{ h }}" disabled>{{ h }} — (Ocupado)</option>
+          <label for="servico">Serviço Desejado</label>
+          <select id="servico" name="servico" required aria-required="true">
+            <option value="Corte Feminino">Corte Feminino</option>
+            <option value="Escova e Hidratação">Escova e Hidratação</option>
+            <option value="Manicure e Pedicure">Manicure e Pedicure</option>
+            <option value="Coloração">Coloração</option>
+          </select>
+
+          <label for="horario">
+            {% if is_sabado %}
+              Horário de Sábado (09:00 às 16:00)
             {% else %}
-              <option value="{{ h }}">{{ h }} — Disponível</option>
+              Horário (08:00 às 20:00)
             {% endif %}
-          {% endfor %}
-        </select>
+          </label>
+          <select id="horario" name="horario" required aria-required="true">
+            {% for h in horarios %}
+              {% if h in ocupados %}
+                <option value="{{ h }}" disabled>{{ h }} — (Ocupado)</option>
+              {% else %}
+                <option value="{{ h }}">{{ h }} — Disponível</option>
+              {% endif %}
+            {% endfor %}
+          </select>
 
-        <button type="submit" class="btn-submit">Confirmar Agendamento</button>
+          <button type="submit" class="btn-submit">Confirmar Agendamento</button>
+        {% endif %}
       </form>
       <div id="feedback" class="status-msg" role="status" aria-live="polite"></div>
     </section>
 
     <section class="card" aria-labelledby="lista-title">
-      <h2 id="lista-title" style="margin-top:0; font-size:1.1rem;">Horários Agendados</h2>
+      <h2 id="lista-title" style="margin-top:0; font-size:1.1rem;">Agenda do Dia ({{ data_selecionada }})</h2>
       <ul id="lista-agendamentos">
         {% for item in agendamentos %}
           <li>
@@ -141,7 +170,7 @@
             <span>{{ item.horario }}</span>
           </li>
         {% else %}
-          <li id="vazio-msg">Nenhum agendamento registrado ainda.</li>
+          <li id="vazio-msg">Nenhum agendamento registrado para esta data.</li>
         {% endfor %}
       </ul>
     </section>
@@ -154,10 +183,30 @@
       btnContrast.setAttribute("aria-pressed", active);
     });
 
-    document.getElementById("form-agendamento").addEventListener("submit", async (e) => {
+    const inputData = document.getElementById("data");
+    inputData.addEventListener("change", () => {
+      if (!inputData.value) return;
+      const [ano, mes, dia] = inputData.value.split("-").map(Number);
+      const dataEscolhida = new Date(ano, mes - 1, dia);
+      if (dataEscolhida.getDay() === 0) {
+        alert("O salão não abre aos domingos. Escolha um dia entre segunda e sábado.");
+        dataEscolhida.setDate(dataEscolhida.getDate() + 1);
+        const proxData = dataEscolhida.toISOString().split("T")[0];
+        window.location.href = "/?data=" + encodeURIComponent(proxData);
+        return;
+      }
+      window.location.href = "/?data=" + encodeURIComponent(inputData.value);
+    });
+
+    const form = document.getElementById("form-agendamento");
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      const campoNome = document.getElementById("cliente_nome");
+      if (!campoNome) return;
+
       const payload = {
-        cliente_nome: document.getElementById("cliente_nome").value,
+        data: inputData.value,
+        cliente_nome: campoNome.value,
         servico: document.getElementById("servico").value,
         horario: document.getElementById("horario").value
       };
@@ -170,7 +219,9 @@
       const feedback = document.getElementById("feedback");
       if (resp.ok) {
         feedback.textContent = "Agendamento confirmado com sucesso!";
-        setTimeout(() => location.reload(), 500);
+        setTimeout(() => {
+          window.location.href = "/?data=" + encodeURIComponent(payload.data);
+        }, 400);
       } else {
         feedback.textContent = "Erro: " + data.erro;
       }
