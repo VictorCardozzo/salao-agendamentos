@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salão da Ana — Agendamento Online</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --card: #ffffff;
+      --text: #1f2937;
+      --primary: #7c3aed;
+      --primary-hover: #6d28d9;
+      --border: #d1d5db;
+    }
+    body.high-contrast {
+      --bg: #000000;
+      --card: #111111;
+      --text: #ffff00;
+      --primary: #ffff00;
+      --primary-hover: #e5e500;
+      --border: #ffff00;
+    }
+    body.high-contrast button.btn-submit { color: #000000; font-weight: bold; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 1rem;
+      display: flex;
+      justify-content: center;
+    }
+    main { width: 100%; max-width: 480px; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    h1 { font-size: 1.4rem; margin: 0; }
+    .btn-a11y {
+      background: transparent;
+      border: 2px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.7rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.2rem;
+      margin-bottom: 1rem;
+    }
+    label { display: block; font-weight: 600; margin-top: 0.8rem; margin-bottom: 0.3rem; }
+    input, select {
+      width: 100%;
+      padding: 0.65rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 1rem;
+      box-sizing: border-box;
+      background: var(--card);
+      color: var(--text);
+    }
+    input:focus, select:focus, button:focus {
+      outline: 3px solid #2563eb;
+      outline-offset: 2px;
+    }
+    .btn-submit {
+      width: 100%;
+      margin-top: 1.2rem;
+      padding: 0.75rem;
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .btn-submit:hover { background: var(--primary-hover); }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li {
+      padding: 0.7rem 0;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+    }
+    li:last-child { border-bottom: none; }
+    .status-msg { margin-top: 0.6rem; font-size: 0.9rem; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Salão da Ana</h1>
+      <button type="button" class="btn-a11y" id="toggle-contrast" aria-pressed="false" aria-label="Alternar modo de alto contraste">
+        Alto Contraste
+      </button>
+    </header>
+
+    <section class="card" aria-labelledby="form-title">
+      <h2 id="form-title" style="margin-top:0; font-size:1.1rem;">Novo Agendamento</h2>
+      <form id="form-agendamento">
+        <label for="cliente_nome">Seu Nome</label>
+        <input type="text" id="cliente_nome" name="cliente_nome" placeholder="Ex: Maria" required aria-required="true">
+
+        <label for="servico">Serviço Desejado</label>
+        <select id="servico" name="servico" required aria-required="true">
+          <option value="Corte Feminino">Corte Feminino</option>
+          <option value="Escova e Hidratação">Escova e Hidratação</option>
+          <option value="Manicure e Pedicure">Manicure e Pedicure</option>
+          <option value="Coloração">Coloração</option>
+        </select>
+
+        <label for="horario">Horário (08:00 às 20:00)</label>
+        <select id="horario" name="horario" required aria-required="true">
+          {% for h in horarios %}
+            {% if h in ocupados %}
+              <option value="{{ h }}" disabled>{{ h }} — (Ocupado)</option>
+            {% else %}
+              <option value="{{ h }}">{{ h }} — Disponível</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+
+        <button type="submit" class="btn-submit">Confirmar Agendamento</button>
+      </form>
+      <div id="feedback" class="status-msg" role="status" aria-live="polite"></div>
+    </section>
+
+    <section class="card" aria-labelledby="lista-title">
+      <h2 id="lista-title" style="margin-top:0; font-size:1.1rem;">Horários Agendados</h2>
+      <ul id="lista-agendamentos">
+        {% for item in agendamentos %}
+          <li>
+            <span><strong>{{ item.cliente_nome }}</strong> — {{ item.servico }}</span>
+            <span>{{ item.horario }}</span>
+          </li>
+        {% else %}
+          <li id="vazio-msg">Nenhum agendamento registrado ainda.</li>
+        {% endfor %}
+      </ul>
+    </section>
+  </main>
+
+  <script>
+    const btnContrast = document.getElementById("toggle-contrast");
+    btnContrast.addEventListener("click", () => {
+      const active = document.body.classList.toggle("high-contrast");
+      btnContrast.setAttribute("aria-pressed", active);
+    });
+
+    document.getElementById("form-agendamento").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const payload = {
+        cliente_nome: document.getElementById("cliente_nome").value,
+        servico: document.getElementById("servico").value,
+        horario: document.getElementById("horario").value
+      };
+      const resp = await fetch("/agendamentos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await resp.json();
+      const feedback = document.getElementById("feedback");
+      if (resp.ok) {
+        feedback.textContent = "Agendamento confirmado com sucesso!";
+        setTimeout(() => location.reload(), 500);
+      } else {
+        feedback.textContent = "Erro: " + data.erro;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,5 +1,5 @@
-from flask import Flask, request, jsonify
-from app.models import db, Agendamento
+from flask import Flask, request, jsonify, render_template
+from app.models import db, Agendamento, HORARIOS_PERMITIDOS
 
 def create_app(test_config=None):
     app = Flask(__name__)
@@ -14,14 +14,31 @@ def create_app(test_config=None):
     with app.app_context():
         db.create_all()
 
+    @app.route("/", methods=["GET"])
+    def index():
+        agendamentos = Agendamento.query.order_by(Agendamento.horario).all()
+        ocupados = {a.horario for a in agendamentos}
+        return render_template(
+            "index.html",
+            agendamentos=agendamentos,
+            horarios=HORARIOS_PERMITIDOS,
+            ocupados=ocupados
+        )
+
     @app.route("/agendamentos", methods=["POST"])
     def criar_agendamento():
         dados = request.get_json() or {}
+        horario_solicitado = dados.get("horario", "").strip()
+
+        # Check de conflito no banco de dados
+        if Agendamento.query.filter_by(horario=horario_solicitado).first():
+            return jsonify({"erro": "Este horário já está ocupado. Escolha outro."}), 409
+
         try:
             novo = Agendamento(
                 cliente_nome=dados.get("cliente_nome", ""),
                 servico=dados.get("servico", ""),
-                horario=dados.get("horario", "")
+                horario=horario_solicitado
             )
             db.session.add(novo)
             db.session.commit()
@@ -31,7 +48,7 @@ def create_app(test_config=None):
 
     @app.route("/agendamentos", methods=["GET"])
     def listar_agendamentos():
-        lista = Agendamento.query.all()
+        lista = Agendamento.query.order_by(Agendamento.horario).all()
         return jsonify([
             {"id": a.id, "cliente": a.cliente_nome, "servico": a.servico, "horario": a.horario}
             for a in lista
